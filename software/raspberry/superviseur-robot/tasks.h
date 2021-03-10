@@ -66,6 +66,8 @@ private:
     ComRobot robot;
     int robotStarted = 0;
     int move = MESSAGE_ROBOT_STOP;
+    int losscounter = 0; // On ne protège pas cette variable avec un mutex, car à chaque message envoyé avec le robot, on utilise le mutex_robot : 
+    //on envoie un seul message à la fois => on n'accède jamais en même temps à la fonction de compte de pertes.
     
     /**********************************************************************/
     /* Tasks                                                              */
@@ -122,6 +124,11 @@ private:
      * @brief Thread opening communication with the robot.
      */
     void OpenComRobot(void *arg);
+    
+    /**
+     * @brief Thread closing communication with the robot.
+     */
+    void CloseComRobot(void *arg);
 
     /**
      * @brief Thread starting the communication with the robot.
@@ -149,8 +156,23 @@ private:
      * @return Message read
      */
     Message *ReadInQueue(RT_QUEUE *queue);
-
+    
+    /**
+    * Retrieves the battery level
+    * @param none
+    * @return none
+    */
     void CheckBattery();
+    
+    
+    /**
+    * Detecs a loss of communication between the robot and the supervisor
+    * @param Message *message
+    * @return none
+    */
+    void LossDetector(Message *message);
+    
+    
 };
 
 #endif // __TASKS_H__ 

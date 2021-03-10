@@ -26,7 +26,7 @@
 #define PRIORITY_TRECEIVEFROMMON 25
 #define PRIORITY_TSTARTROBOT 20
 #define PRIORITY_TCAMERA 21
-#define PRIORITY_TCHECKBATTERY 19 // VERIFIER!!!!!!!!!!!!!!!!!!!!!!
+#define PRIORITY_TCHECKBATTERY 23 // VERIFIER!!!!!!!!!!!!!!!!!!!!!!
 
 
 /*
@@ -466,6 +466,45 @@ void Tasks::CheckBattery(){
             rt_mutex_release(&mutex_robot);
         }
         
-    }
+    } 
 }
 
+
+/**
+    * Detecs a loss of communication between the robot and the supervisor
+    * @param Message *message
+    * @return none
+    */
+
+    // Fonction à appeler dès que l'on envoie un message au robot
+    void Tasks::LossDetector(Message *message){
+        // On vérifie s'il y a une erreur sur le message :
+        if (message->GetID() == MESSAGE_ANSWER_ROBOT_ERROR | 
+                message->GetID() == MESSAGE_ANSWER_COM_ERROR | 
+                message->GetID() == MESSAGE_ANSWER_ROBOT_TIMEOUT | 
+                message->GetID() == MESSAGE_ANSWER_ROBOT_UNKNOWN_COMMAND){
+            losscounter ++;
+            // On vérifie qu'il n'y a pas eu plus de 3 erreurs successives
+            if (losscounter >=3 ){
+                CloseComRobot();
+                losscounter = 0;
+            }
+        }
+        else{ // Tout s'est bien passé
+            losscounter = 0;
+        }
+        
+    }
+    
+    /**
+    * Closes the communication between the robot and the supervisor (initialize the variables)
+    * @param None
+    * @return none
+    */
+    void Tasks::CloseComRobot(){
+        // On envoie un message au moniteur pouor prévenir de la perte de communication
+        Message LossCommunication = new Message(MESSAGE_ROBOT_COM_CLOSE);
+        WriteInQueue(&q_messageToMon, LossCommunication);
+        
+        // A VOIR SI IL FAUT REINITIALISER DES VARIABLES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    }
