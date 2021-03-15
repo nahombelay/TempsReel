@@ -27,6 +27,7 @@
 #define PRIORITY_TSTARTROBOT 20
 #define PRIORITY_TCAMERA 21
 #define PRIORITY_TCHECKBATTERY 23 // VERIFIER!!!!!!!!!!!!!!!!!!!!!!
+#define PRIORITY_WATCHDOG 20 //TODO: a vérifier
 
 
 /*
@@ -96,6 +97,11 @@ void Tasks::Init() {
         cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    if (err = rt_sem_create(&sem_watchdog, NULL, 0, S_FIFO)) {
+        cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+    
     cout << "Semaphores created successfully" << endl << flush;
 
     /**************************************************************************************/
@@ -130,6 +136,12 @@ void Tasks::Init() {
         cerr << "Error task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+    
+    if (err = rt_task_create(&th_watchdog, "th_watchdog", 0, PRIORITY_WATCHDOG, 0)) {
+        cerr << "Error task create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+    
     
     
     cout << "Tasks created successfully" << endl << flush;
@@ -278,7 +290,15 @@ void Tasks::ReceiveFromMonTask(void *arg) {
             exit(-1);
         } else if (msgRcv->CompareID(MESSAGE_ROBOT_COM_OPEN)) {
             rt_sem_v(&sem_openComRobot);
-        } else if (msgRcv->CompareID(MESSAGE_ROBOT_START_WITHOUT_WD)) {
+        } else if (msgRcv->CompareID(MESSAGE_ROBOT_START_WITHOUT_WD ){
+            rt_mutex_acquire(&mutex_watchdog, TM_INFINITE);
+            watchdogActivated = 0;
+            rt_mutex_release(&mutex_watchdog);
+            rt_sem_v(&sem_startRobot);
+        } else if (msgRcv->CompareID(MESSAGE_ROBOT_START_WITH_WD ){
+            rt_mutex_acquire(&mutex_watchdog, TM_INFINITE);
+            watchdogActivated = 1;
+            rt_mutex_release(&mutex_watchdog);
             rt_sem_v(&sem_startRobot);
         } else if (msgRcv->CompareID(MESSAGE_ROBOT_GO_FORWARD) ||
                 msgRcv->CompareID(MESSAGE_ROBOT_GO_BACKWARD) ||
@@ -339,12 +359,18 @@ void Tasks::StartRobotTask(void *arg) {
     /* The task startRobot starts here                                                    */
     /**************************************************************************************/
     while (1) {
-
         Message * msgSend;
         rt_sem_p(&sem_startRobot, TM_INFINITE);
         cout << "Start robot without watchdog (";
         rt_mutex_acquire(&mutex_robot, TM_INFINITE);
-        msgSend = robot.Write(robot.StartWithoutWD());
+        rt_mutex_acquire(&mutex_watchdog, TM_INFINITE);
+        if (watchdogActivated == 1){
+            msgSend = robot.Write(robot.StartWithWD());
+            rt_sem_v(&sem_watchdog);
+        } else {
+            msgSend = robot.Write(robot.StartWithoutWD());
+        }
+        rt_mutex_release(&mutex_watchdog);
         rt_mutex_release(&mutex_robot);
         cout << msgSend->GetID();
         cout << ")" << endl;
@@ -469,42 +495,49 @@ void Tasks::CheckBattery(){
     } 
 }
 
-
+void Tasks::Watchdog(){
+    cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
+    // Synchronization barrier (waiting that all tasks are starting)
+    rt_sem_p(&sem_watchdog, TM_INFINITE);
+    
+    //TODO: continuer
+}
 /**
-    * Detecs a loss of communication between the robot and the supervisor
-    * @param Message *message
-    * @return none
-    */
+* Detecs a loss of communication between the robot and the supervisor
+* @param Message *message
+* @return none
+*/
 
-    // Fonction à appeler dès que l'on envoie un message au robot
-    void Tasks::LossDetector(Message *message){
-        // On vérifie s'il y a une erreur sur le message :
-        if (message->GetID() == MESSAGE_ANSWER_ROBOT_ERROR | 
-                message->GetID() == MESSAGE_ANSWER_COM_ERROR | 
-                message->GetID() == MESSAGE_ANSWER_ROBOT_TIMEOUT | 
-                message->GetID() == MESSAGE_ANSWER_ROBOT_UNKNOWN_COMMAND){
-            losscounter ++;
-            // On vérifie qu'il n'y a pas eu plus de 3 erreurs successives
-            if (losscounter >=3 ){
-                CloseComRobot();
-                losscounter = 0;
-            }
-        }
-        else{ // Tout s'est bien passé
+// Fonction à appeler dès que l'on envoie un message au robot
+void Tasks::LossDetector(Message *message){
+    // On vérifie s'il y a une erreur sur le message :
+    if (message->GetID() == MESSAGE_ANSWER_ROBOT_ERROR | 
+            message->GetID() == MESSAGE_ANSWER_COM_ERROR | 
+            message->GetID() == MESSAGE_ANSWER_ROBOT_TIMEOUT | 
+            message->GetID() == MESSAGE_ANSWER_ROBOT_UNKNOWN_COMMAND){
+        losscounter ++;
+        // On vérifie qu'il n'y a pas eu plus de 3 erreurs successives
+        if (losscounter >=3 ){
+            CloseComRobot();
             losscounter = 0;
         }
-        
     }
+    else{ // Tout s'est bien passé
+        losscounter = 0;
+    }
+
+}
     
-    /**
-    * Closes the communication between the robot and the supervisor (initialize the variables)
-    * @param None
-    * @return none
-    */
-    void Tasks::CloseComRobot(){
-        // On envoie un message au moniteur pouor prévenir de la perte de communication
-        Message LossCommunication = new Message(MESSAGE_ROBOT_COM_CLOSE);
-        WriteInQueue(&q_messageToMon, LossCommunication);
-        
-        // A VOIR SI IL FAUT REINITIALISER DES VARIABLES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    }
+/**
+* Closes the communication between the robot and the supervisor (initialize the variables)
+* @param None
+* @return none
+*/
+void Tasks::CloseComRobot(){
+    // On envoie un message au moniteur pouor prévenir de la perte de communication avec robot
+    Message LossCommunication = new Message(MESSAGE_ROBOT_COM_CLOSE);
+    WriteInQueue(&q_messageToMon, LossCommunication);
+
+
+    // A VOIR SI IL FAUT REINITIALISER DES VARIABLES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+}

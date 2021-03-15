@@ -66,6 +66,7 @@ private:
     ComRobot robot;
     int robotStarted = 0;
     int move = MESSAGE_ROBOT_STOP;
+    int watchdogActivated = 0; //if 0 then not activated else if 1 then activated
     int losscounter = 0; // On ne protège pas cette variable avec un mutex, car à chaque message envoyé avec le robot, on utilise le mutex_robot : 
     //on envoie un seul message à la fois => on n'accède jamais en même temps à la fonction de compte de pertes.
     
@@ -79,6 +80,7 @@ private:
     RT_TASK th_startRobot;
     RT_TASK th_move;
     RT_TASK th_checkBattery;
+    RT_TASK th_watchdog;
     
     /**********************************************************************/
     /* Mutex                                                              */
@@ -87,6 +89,7 @@ private:
     RT_MUTEX mutex_robot;
     RT_MUTEX mutex_robotStarted;
     RT_MUTEX mutex_move;
+    RT_MUTEX mutex_watchdog;
 
     /**********************************************************************/
     /* Semaphores                                                         */
@@ -95,6 +98,7 @@ private:
     RT_SEM sem_openComRobot;
     RT_SEM sem_serverOk;
     RT_SEM sem_startRobot;
+    RT_SEM sem_watchdog;
 
     /**********************************************************************/
     /* Message queues                                                     */
@@ -172,7 +176,10 @@ private:
     */
     void LossDetector(Message *message);
     
-    
+    /**
+     * demmarage du watchdog
+     */
+    void Watchdog();
 };
 
 #endif // __TASKS_H__ 
