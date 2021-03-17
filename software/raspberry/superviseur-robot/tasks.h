@@ -81,6 +81,7 @@ private:
     RT_TASK th_move;
     RT_TASK th_checkBattery;
     RT_TASK th_watchdog;
+    RT_TASK th_resetMon;
     
     /**********************************************************************/
     /* Mutex                                                              */
@@ -99,6 +100,8 @@ private:
     RT_SEM sem_serverOk;
     RT_SEM sem_startRobot;
     RT_SEM sem_watchdog;
+    RT_SEM sem_resetmon;
+    RT_SEM sem_opencom;
 
     /**********************************************************************/
     /* Message queues                                                     */
@@ -132,7 +135,7 @@ private:
     /**
      * @brief Thread closing communication with the robot.
      */
-    void CloseComRobot(void *arg);
+    void ResetRobot();
 
     /**
      * @brief Thread starting the communication with the robot.
@@ -180,6 +183,15 @@ private:
      * demmarage du watchdog
      */
     void Watchdog();
+    
+    /**
+     * Reset monitor when connection with monitor is lost
+     * @param arg
+     * @return none
+     */
+    void ResetMon();
+   
+
 };
 
 #endif // __TASKS_H__ 
