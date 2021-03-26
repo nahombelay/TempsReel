@@ -630,6 +630,13 @@ void Tasks::ResetRobot(){
     // On envoie un message au moniteur pouor prévenir de la perte de communication avec robot
     Message * LossCommunication = new Message(MESSAGE_ROBOT_COM_CLOSE);
     WriteInQueue(&q_messageToMon, LossCommunication);
+    
+    rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
+    robotStarted = 0;
+    cout << "Robot stoppé" << endl;
+    rt_mutex_release(&mutex_robotStarted);
+    
+    rt_sem_v(&sem_openComRobot);
 
 
     // A VOIR SI IL FAUT REINITIALISER DES VARIABLES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
