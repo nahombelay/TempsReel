@@ -77,6 +77,12 @@ void Tasks::Init() {
         cerr << "Error mutex create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+
+    if (err = rt_mutex_create(&mutex_lossdetector, NULL)) {
+        cerr << "Error mutex create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+
     cout << "Mutexes created successfully" << endl << flush;
 
     /**************************************************************************************/
@@ -109,6 +115,11 @@ void Tasks::Init() {
     }
     
     if (err = rt_sem_create(&sem_opencom, NULL, 1, S_FIFO)) {
+        cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+
+    if (err = rt_sem_create(&sem_resetwatchdog, NULL, 1, S_FIFO)) {
         cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
@@ -154,6 +165,11 @@ void Tasks::Init() {
     }
     
     if (err = rt_task_create(&th_resetMon, "th_resetMon", 0, PRIORITY_RESETMON, 0)) {
+        cerr << "Error task create: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+
+    if (err = rt_task_create(&th_resetMon, "th_resetWD", 0, PRIORITY_RESETMON, 0)) {
         cerr << "Error task create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
@@ -219,6 +235,12 @@ void Tasks::Run() {
         cerr << "Error task start: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
+
+    if (err = rt_task_start(&th_resetWD, (void(*)(void*)) & Tasks::ResetWDThread, this)) {
+        cerr << "Error task start: " << strerror(-err) << endl << flush;
+        exit(EXIT_FAILURE);
+    }
+
 
     cout << "Tasks launched" << endl << flush;
 }
@@ -552,6 +574,32 @@ void Tasks::Watchdog(){
         rt_mutex_release(&mutex_robot);
     }
 }
+
+
+void Tasks::ResetWDThread(){
+    cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
+    // Synchronization barrier (waiting that all tasks are starting)
+    while(1) {
+        rt_sem_p(&sem_resetwatchdog, TM_INFINITE);
+
+        if (err = rt_task_delete(&th_watchdog)) {
+            cerr << "Error task delete: " << strerror(-err) << endl << flush;
+            exit(EXIT_FAILURE);
+        }
+
+        if (err = rt_task_create(&th_watchdog, "th_watchdog", 0, PRIORITY_WATCHDOG, 0)) {
+            cerr << "Error task create: " << strerror(-err) << endl << flush;
+            exit(EXIT_FAILURE);
+        }
+
+        if (err = rt_task_start(&th_watchdog, (void (*)(void *)) &Tasks::Watchdog, this)) {
+            cerr << "Error task start: " << strerror(-err) << endl << flush;
+            exit(EXIT_FAILURE);
+        }
+
+        cout << "Task WD relance avec succes" << endl ;
+    }
+}
 /**
 * Detecs a loss of communication between the robot and the supervisor
 * @param Message *message
@@ -560,6 +608,8 @@ void Tasks::Watchdog(){
 
 // Fonction à appeler dès que l'on envoie un message au robot
 void Tasks::LossDetector(Message *message){
+    rt_mutex_acquire(&mutex_lossdetector, TM_INFINITE);
+
     // On vérifie s'il y a une erreur sur le message :
     if (message->GetID() == MESSAGE_ANSWER_ROBOT_ERROR | 
             message->GetID() == MESSAGE_ANSWER_COM_ERROR | 
@@ -576,49 +626,66 @@ void Tasks::LossDetector(Message *message){
     else{ // Tout s'est bien passé
         losscounter = 0;
     }
+    rt_mutex_release(&mutex_lossdetector);
 
 }
   
 void Tasks::ResetMon(){
-    cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
-    rt_sem_p(&sem_resetmon, TM_INFINITE);
-    cout << "entrée fct" << endl;
-    Message * RobotStopped;
-    int closed;
-    
-    //stopper robot
-    rt_mutex_acquire(&mutex_robot, TM_INFINITE);
-    cout << "entrée mutex" << endl;
-    RobotStopped = robot.Stop();
-    robot.Write(RobotStopped);
-    cout << "ribit stop" << endl;
-    
-    RobotStopped = robot.Reset();
-    robot.Write(RobotStopped);
-    cout << "robot reset" << endl;
-    
-    rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
-    robotStarted = 0;
-    cout << "Robot stoppé" << endl;
-    rt_mutex_release(&mutex_robotStarted);
-    
-    //fermer comm robot
-    closed = robot.Close();
-    if (closed >= 0){
-        cout << "Communication avec robot stoppée" << endl;
-    } 
-    else {
-        cout << "Erreur fermeture comm avec robot" << endl;
-        exit(-1);
+    while(1) {
+        cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
+        rt_sem_p(&sem_resetmon, TM_INFINITE);
+        cout << "entrée fct" << endl;
+        Message *RobotStopped;
+        int closed;
+
+
+        rt_mutex_acquire(&mutex_watchdog, TM_INFINITE);
+        if (watchdogActivated == 1){
+            rt_sem_v(&sem_resetwatchdog)
+            watchdogActivated = 0;
+        }
+        rt_mutex_release(&mutex_watchdog);
+
+
+        rt_mutex_acquire(&mutex_robot, TM_INFINITE);
+        //stopper robot
+        cout << "entrée mutex" << endl;
+        RobotStopped = robot.Stop();
+        robot.Write(RobotStopped);
+        cout << "robot stop" << endl;
+
+        //reset robot
+        RobotStopped = robot.Reset();
+        robot.Write(RobotStopped);
+        cout << "robot reset" << endl;
+
+        rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
+        robotStarted = 0;
+        cout << "Robot stoppé" << endl;
+        rt_mutex_release(&mutex_robotStarted);
+
+        //fermer comm robot
+        closed = robot.Close();
+        if (closed >= 0) {
+            cout << "Communication avec robot stoppée" << endl;
+        } else {
+            cout << "Erreur fermeture comm avec robot" << endl;
+            exit(-1);
+        }
+
+        rt_mutex_release(&mutex_robot);
+
+        //remet losscounter a 0
+        rt_mutex_acquire(&mutex_lossdetector, TM_INFINITE);
+        losscounter = 0;
+        rt_mutex_release(&mutex_lossdetector);
+
+        //fermer serveur
+        rt_mutex_acquire(&mutex_monitor, TM_INFINITE);
+        monitor.Close();
+        rt_mutex_release(&mutex_monitor);
+        rt_sem_v(&sem_opencom);
     }
-   
-    rt_mutex_release(&mutex_robot);
-    
-    //fermer serveur
-    rt_mutex_acquire(&mutex_monitor, TM_INFINITE);
-    monitor.Close();
-    rt_mutex_release(&mutex_monitor);
-    rt_sem_v(&sem_opencom);
 } 
 
 /**
@@ -628,13 +695,27 @@ void Tasks::ResetMon(){
 */
 void Tasks::ResetRobot(){
     // On envoie un message au moniteur pouor prévenir de la perte de communication avec robot
-    Message * LossCommunication = new Message(MESSAGE_ROBOT_COM_CLOSE);
+    Message * LossCommunication = new Message(MESSAGE_MONITOR_LOST);
     WriteInQueue(&q_messageToMon, LossCommunication);
-    
+
+    //reset robot
+    RobotStopped = robot.Reset();
+    robot.Write(RobotStopped);
+    cout << "robot reset" << endl;
+
     rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
     robotStarted = 0;
     cout << "Robot stoppé" << endl;
     rt_mutex_release(&mutex_robotStarted);
+
+    //fermer comm robot
+    closed = robot.Close();
+    if (closed >= 0) {
+        cout << "Communication avec robot stoppée" << endl;
+    } else {
+        cout << "Erreur fermeture comm avec robot" << endl;
+        exit(-1);
+    }
     
     rt_sem_v(&sem_openComRobot);
 

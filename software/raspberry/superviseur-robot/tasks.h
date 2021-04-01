@@ -82,6 +82,7 @@ private:
     RT_TASK th_checkBattery;
     RT_TASK th_watchdog;
     RT_TASK th_resetMon;
+    RT_TASK th_resetWD;
     
     /**********************************************************************/
     /* Mutex                                                              */
@@ -91,6 +92,7 @@ private:
     RT_MUTEX mutex_robotStarted;
     RT_MUTEX mutex_move;
     RT_MUTEX mutex_watchdog;
+    RT_MUTEX mutex_lossdetector;
 
     /**********************************************************************/
     /* Semaphores                                                         */
@@ -102,6 +104,7 @@ private:
     RT_SEM sem_watchdog;
     RT_SEM sem_resetmon;
     RT_SEM sem_opencom;
+    RT_SEM sem_resetwatchdog;
 
     /**********************************************************************/
     /* Message queues                                                     */
@@ -183,6 +186,12 @@ private:
      * demmarage du watchdog
      */
     void Watchdog();
+    
+	/**
+     * supprime le thread WD et recrée un autre
+     */
+
+    void Tasks::ResetWDThread()
     
     /**
      * Reset monitor when connection with monitor is lost
