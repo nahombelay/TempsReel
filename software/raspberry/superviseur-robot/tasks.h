@@ -191,7 +191,7 @@ private:
      * supprime le thread WD et recrée un autre
      */
 
-    void Tasks::ResetWDThread()
+    void ResetWDThread();
     
     /**
      * Reset monitor when connection with monitor is lost

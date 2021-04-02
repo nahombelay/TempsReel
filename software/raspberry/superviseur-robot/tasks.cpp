@@ -119,7 +119,7 @@ void Tasks::Init() {
         exit(EXIT_FAILURE);
     }
 
-    if (err = rt_sem_create(&sem_resetwatchdog, NULL, 1, S_FIFO)) {
+    if (err = rt_sem_create(&sem_resetwatchdog, NULL, 0, S_FIFO)) {
         cerr << "Error semaphore create: " << strerror(-err) << endl << flush;
         exit(EXIT_FAILURE);
     }
@@ -236,10 +236,10 @@ void Tasks::Run() {
         exit(EXIT_FAILURE);
     }
 
-    if (err = rt_task_start(&th_resetWD, (void(*)(void*)) & Tasks::ResetWDThread, this)) {
-        cerr << "Error task start: " << strerror(-err) << endl << flush;
-        exit(EXIT_FAILURE);
-    }
+    //if (err = rt_task_start(&th_resetWD, (void(*)(void*)) & Tasks::ResetWDThread, this)) {
+      //  cerr << "Error task start: " << strerror(-err) << endl << flush;
+       // exit(EXIT_FAILURE);
+    //}
 
 
     cout << "Tasks launched" << endl << flush;
@@ -577,6 +577,7 @@ void Tasks::Watchdog(){
 
 
 void Tasks::ResetWDThread(){
+    int err;
     cout << "Start " << __PRETTY_FUNCTION__ << endl << flush;
     // Synchronization barrier (waiting that all tasks are starting)
     while(1) {
@@ -641,7 +642,7 @@ void Tasks::ResetMon(){
 
         rt_mutex_acquire(&mutex_watchdog, TM_INFINITE);
         if (watchdogActivated == 1){
-            rt_sem_v(&sem_resetwatchdog)
+            rt_sem_v(&sem_resetwatchdog);
             watchdogActivated = 0;
         }
         rt_mutex_release(&mutex_watchdog);
@@ -697,9 +698,9 @@ void Tasks::ResetRobot(){
     // On envoie un message au moniteur pouor prévenir de la perte de communication avec robot
     Message * LossCommunication = new Message(MESSAGE_MONITOR_LOST);
     WriteInQueue(&q_messageToMon, LossCommunication);
-
+    
     //reset robot
-    RobotStopped = robot.Reset();
+    Message * RobotStopped = robot.Reset();
     robot.Write(RobotStopped);
     cout << "robot reset" << endl;
 
@@ -709,7 +710,7 @@ void Tasks::ResetRobot(){
     rt_mutex_release(&mutex_robotStarted);
 
     //fermer comm robot
-    closed = robot.Close();
+    int closed = robot.Close();
     if (closed >= 0) {
         cout << "Communication avec robot stoppée" << endl;
     } else {
