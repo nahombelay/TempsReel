@@ -708,7 +708,8 @@ void Tasks::ResetRobot(){
     robotStarted = 0;
     cout << "Robot stoppé" << endl;
     rt_mutex_release(&mutex_robotStarted);
-
+    
+    //RESET WD THREAD !!!!!!!!!!!!!!!!!!!!!!
     //fermer comm robot
     int closed = robot.Close();
     if (closed >= 0) {
