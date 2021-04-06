@@ -11,8 +11,8 @@
             <file>file:/home/belay/Bureau/4A/TempsReel/TempsReel/software/raspberry/superviseur-robot/tasks.cpp</file>
             <file>file:/home/belay/Bureau/4A/TempsReel/TempsReel/software/raspberry/superviseur-robot/tasks.h</file>
             <file>file:/home/belay/Bureau/4A/TempsReel/TempsReel/software/raspberry/superviseur-robot/lib/comrobot.h</file>
-            <file>file:/home/belay/Bureau/4A/TempsReel/TempsReel/software/raspberry/superviseur-robot/lib/comrobot.cpp</file>
-            <file>file:/home/belay/Bureau/4A/TempsReel/TempsReel/software/raspberry/superviseur-robot/lib/commonitor.h</file>
+            <file>file:/home/belay/Bureau/4A/TempsReel/TempsReel/software/raspberry/superviseur-robot/lib/messages.h</file>
+            <file>file:/home/belay/Bureau/4A/TempsReel/TempsReel/software/raspberry/superviseur-robot/main.cpp</file>
         </group>
     </open-files>
 </project-private>

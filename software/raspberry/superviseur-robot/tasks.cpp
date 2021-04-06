@@ -28,7 +28,7 @@
 #define PRIORITY_TCAMERA 21
 #define PRIORITY_TCHECKBATTERY 23 // VERIFIER!!!!!!!!!!!!!!!!!!!!!!
 #define PRIORITY_WATCHDOG 50 //TODO: a vérifier
-#define PRIORITY_RESETMON 27
+#define PRIORITY_RESETMON 60
 
 
 /*
@@ -341,7 +341,7 @@ void Tasks::ReceiveFromMonTask(void *arg) {
 
             if (msgRcv->CompareID(MESSAGE_MONITOR_LOST)) {
                 //delete(msgRcv);
-                cout << "on libere le sem mon lost" << endl;
+                cout << "PERTE DE COMMUNICATION AVEC LE MONITEUR" << endl;
                 rt_sem_v(&sem_resetmon);
                 break;
             } else if (msgRcv->CompareID(MESSAGE_ROBOT_COM_OPEN)) {
@@ -463,7 +463,7 @@ void Tasks::MoveTask(void *arg) {
     Message * msg;
     while (1) {
         rt_task_wait_period(NULL);
-        cout << "Periodic movement update";
+        cout << "Periodic movement update" <<endl;
         rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
         rs = robotStarted;
         rt_mutex_release(&mutex_robotStarted);
@@ -569,8 +569,10 @@ void Tasks::Watchdog(){
         rt_mutex_acquire(&mutex_robot, TM_INFINITE);
         msgReload = robot.ReloadWD();
         msg = robot.Write(msgReload);
-        LossDetector(msg);
-        cout << "message reload envoyé" << endl;
+        if (robotStarted == 1){
+            LossDetector(msg);
+        }
+        cout << "MESSAGE RELOAD WATCHDOG ENVOYE" << endl;
         rt_mutex_release(&mutex_robot);
     }
 }
@@ -620,7 +622,7 @@ void Tasks::LossDetector(Message *message){
         // On vérifie qu'il n'y a pas eu plus de 3 erreurs successives
         if (losscounter >=3 ){
             cout << "perte comm avec robot" << endl;
-            //ResetRobot();
+            ResetRobot();
             losscounter = 0;
         }
     }
@@ -696,30 +698,20 @@ void Tasks::ResetMon(){
 */
 void Tasks::ResetRobot(){
     // On envoie un message au moniteur pouor prévenir de la perte de communication avec robot
-    Message * LossCommunication = new Message(MESSAGE_MONITOR_LOST);
+    Message * LossCommunication = new Message(MESSAGE_ANSWER_COM_ERROR);
     WriteInQueue(&q_messageToMon, LossCommunication);
+    cout << "MESSAGE ENVOYÉ AU MONITEUR" << endl;
     
-    //reset robot
-    Message * RobotStopped = robot.Reset();
-    robot.Write(RobotStopped);
-    cout << "robot reset" << endl;
-
+    rt_mutex_acquire(&mutex_watchdog, TM_INFINITE);
+    if (watchdogActivated == 1){
+        rt_sem_v(&sem_resetwatchdog);
+        watchdogActivated = 0;
+    }
+    rt_mutex_release(&mutex_watchdog);
+    
     rt_mutex_acquire(&mutex_robotStarted, TM_INFINITE);
     robotStarted = 0;
     cout << "Robot stoppé" << endl;
     rt_mutex_release(&mutex_robotStarted);
 
-    //fermer comm robot
-    int closed = robot.Close();
-    if (closed >= 0) {
-        cout << "Communication avec robot stoppée" << endl;
-    } else {
-        cout << "Erreur fermeture comm avec robot" << endl;
-        exit(-1);
-    }
-    
-    rt_sem_v(&sem_openComRobot);
-
-
-    // A VOIR SI IL FAUT REINITIALISER DES VARIABLES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
