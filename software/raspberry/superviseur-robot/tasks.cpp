@@ -671,10 +671,11 @@ void Tasks::Watchdog(){
     while(1){
         rt_task_wait_period(NULL);
         rt_mutex_acquire(&mutex_robot, TM_INFINITE);
-        msgReload = robot.ReloadWD();
-        msg = robot.Write(msgReload);
+        
         if (robotStarted == 1){
             LossDetector(msg);
+            msgReload = robot.ReloadWD();
+            msg = robot.Write(msgReload);
         }
         cout << "MESSAGE RELOAD WATCHDOG ENVOYE" << endl;
         rt_mutex_release(&mutex_robot);
