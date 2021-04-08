@@ -64,11 +64,12 @@ private:
     /**********************************************************************/
     ComMonitor monitor;
     ComRobot robot;
+    Camera camera;
     int robotStarted = 0;
+    int envoiePeriodique = 0; //0 false et 1 true
     int move = MESSAGE_ROBOT_STOP;
     int watchdogActivated = 0; //if 0 then not activated else if 1 then activated
-    int losscounter = 0; // On ne protège pas cette variable avec un mutex, car à chaque message envoyé avec le robot, on utilise le mutex_robot : 
-    //on envoie un seul message à la fois => on n'accède jamais en même temps à la fonction de compte de pertes.
+    int losscounter = 0; 
     
     /**********************************************************************/
     /* Tasks                                                              */
@@ -83,16 +84,21 @@ private:
     RT_TASK th_watchdog;
     RT_TASK th_resetMon;
     RT_TASK th_resetWD;
+    RT_TASK th_cameraOn;
+    RT_TASK th_cameraOff;
+    RT_TASK th_gestionvision;
     
     /**********************************************************************/
     /* Mutex                                                              */
     /**********************************************************************/
     RT_MUTEX mutex_monitor;
+    RT_MUTEX mutex_camera;
     RT_MUTEX mutex_robot;
     RT_MUTEX mutex_robotStarted;
     RT_MUTEX mutex_move;
     RT_MUTEX mutex_watchdog;
     RT_MUTEX mutex_lossdetector;
+    RT_MUTEX mutex_envoieperiodique;
 
     /**********************************************************************/
     /* Semaphores                                                         */
@@ -105,6 +111,8 @@ private:
     RT_SEM sem_resetmon;
     RT_SEM sem_opencom;
     RT_SEM sem_resetwatchdog;
+    RT_SEM sem_cameraOpen;
+    RT_SEM sem_cameraClose;
 
     /**********************************************************************/
     /* Message queues                                                     */
@@ -199,7 +207,12 @@ private:
      * @return none
      */
     void ResetMon();
+    
+    void Camera_On();
+    
+    void Camera_Off();
    
+    void GestionVision();
 
 };
 
